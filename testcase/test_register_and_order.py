@@ -36,13 +36,14 @@ class TestRegisterAndOrderFlow(unittest.TestCase):
     def test_register_recharge_order_flow(self):
         """
         完整注册下单流程测试
-        1. 从数据库获取验证码
-        2. 前台注册
-        3. 前台登录
-        4. 后台API充值
-        5. 前台下单
-        6. 等待自动发货
-        7. 数据库验证权益和身份
+        1. 前台填写注册信息并点击获取验证码
+        2. 从数据库获取验证码
+        3. 填写验证码并完成注册
+        4. 前台登录
+        5. 后台API充值
+        6. 前台下单
+        7. 等待自动发货
+        8. 数据库验证权益和身份
         """
         
         order_id = None
@@ -50,28 +51,38 @@ class TestRegisterAndOrderFlow(unittest.TestCase):
         frontend_driver = None
         
         try:
-            # ==================== 步骤1: 从数据库获取验证码 ====================
-            self.testlog.info("步骤1: 从数据库获取验证码")
-            time.sleep(2)  # 等待验证码生成（假设已提前发送）
+            # ==================== 步骤1: 前台填写注册信息并触发获取验证码 ====================
+            self.testlog.info("步骤1: 前台填写注册信息并触发获取验证码")
+            register_page = FrontendRegisterPage()
+            frontend_driver = register_page.driver
+            register_page.open_register_page()
+            
+            register_page.click_register_button()
+            register_page.fill_basic_info(self.test_phone, password=self.test_password)
+            register_page.click_get_verification_code()
+            
+            self.testlog.info("已点击获取验证码按钮，等待系统发送验证码...")
+            
+            # ==================== 步骤2: 从数据库获取验证码 ====================
+            self.testlog.info("步骤2: 从数据库获取验证码")
+            time.sleep(2)
             
             with DatabaseHelper() as db_helper:
                 verification_code = db_helper.query_verification_code(self.test_phone)
                 self.assertIsNotNone(verification_code, f"未找到手机号 {self.test_phone} 的验证码")
                 self.testlog.info(f"获取到验证码: {verification_code}")
             
-            # ==================== 步骤2: 前台注册 ====================
-            self.testlog.info("步骤2: 前台注册")
-            register_page = FrontendRegisterPage()
-            frontend_driver = register_page.driver
-            register_page.open_register_page()
-            register_page.register(self.test_phone, verification_code, self.test_password)
+            # ==================== 步骤3: 填写验证码并完成注册 ====================
+            self.testlog.info("步骤3: 填写验证码并完成注册")
+            register_page.fill_verification_code(verification_code)
+            register_page.submit_register()
             
             # 验证注册成功
             self.assertTrue(register_page.is_registered_successfully(), "前台注册失败")
             self.testlog.info("前台注册成功")
             
-            # ==================== 步骤3: 前台登录 ====================
-            self.testlog.info("步骤3: 前台登录")
+            # ==================== 步骤4: 前台登录 ====================
+            self.testlog.info("步骤4: 前台登录")
             login_page = FrontendLoginPage()
             login_page.driver = frontend_driver  # 复用同一个driver
             login_page.login(self.test_phone, self.test_password)
@@ -80,8 +91,8 @@ class TestRegisterAndOrderFlow(unittest.TestCase):
             self.assertTrue(login_page.is_logged_in(), "前台登录失败")
             self.testlog.info("前台登录成功")
             
-            # ==================== 步骤4: 获取用户ID并后台充值 ====================
-            self.testlog.info("步骤4: 后台API充值")
+            # ==================== 步骤5: 获取用户ID并后台充值 ====================
+            self.testlog.info("步骤5: 后台API充值")
             
             # 从数据库获取用户ID
             with DatabaseHelper() as db_helper:
@@ -103,8 +114,8 @@ class TestRegisterAndOrderFlow(unittest.TestCase):
                 self.assertTrue(recharge_success, f"用户 {user_id} 充值失败")
                 self.testlog.info(f"用户 {user_id} 充值成功")
             
-            # ==================== 步骤5: 前台下单 ====================
-            self.testlog.info("步骤5: 前台浏览商品并下单")
+            # ==================== 步骤6: 前台下单 ====================
+            self.testlog.info("步骤6: 前台浏览商品并下单")
             order_page = FrontendOrderPage()
             order_page.driver = frontend_driver  # 复用同一个driver
             
@@ -117,8 +128,8 @@ class TestRegisterAndOrderFlow(unittest.TestCase):
             order_page.place_order()
             self.testlog.info("下单成功")
             
-            # ==================== 步骤6: 获取订单ID并等待自动发货 ====================
-            self.testlog.info("步骤6: 获取订单ID并等待自动发货")
+            # ==================== 步骤7: 获取订单ID并等待自动发货 ====================
+            self.testlog.info("步骤7: 获取订单ID并等待自动发货")
             time.sleep(3)  # 等待订单创建完成
             
             # 获取订单ID
@@ -134,8 +145,8 @@ class TestRegisterAndOrderFlow(unittest.TestCase):
             time.sleep(5)  # 等待自动发货处理（根据实际业务调整等待时间）
             self.testlog.info("等待自动发货完成")
             
-            # ==================== 步骤7: 数据库验证权益和身份 ====================
-            self.testlog.info("步骤7: 数据库验证权益和身份")
+            # ==================== 步骤8: 数据库验证权益和身份 ====================
+            self.testlog.info("步骤8: 数据库验证权益和身份")
             
             with DatabaseHelper() as db_helper:
                 # 断言1: 验证订单存在
